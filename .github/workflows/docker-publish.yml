@@ -1,6 +1,13 @@
 name: Create and publish a Docker image
 
 on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Triggers the build whenever you push code to the main branch
+  push:
+    branches:
+      - main
+  # Original trigger: Triggers when a GitHub Release is published
   release:
     types: [published]
 
@@ -38,6 +45,11 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # This ensures that pushes to main/manual runs get the :latest tag
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push Docker image
         id: push
@@ -47,7 +59,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          # Building for multiple architectures (takes a bit longer)
+          platforms: linux/amd64,linux/arm64
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
@@ -55,4 +68,3 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-
